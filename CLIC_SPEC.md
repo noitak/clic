@@ -3,6 +3,7 @@
 ## Concept
 
 `clic` is a personal command knowledge-base CLI for macOS and zsh.
+The name stands for **Command Library in Context**.
 
 It saves useful shell commands as small Markdown runbook entries, then lets the user search those entries with natural language, fill template parameters, and copy the resulting command to the clipboard.
 
