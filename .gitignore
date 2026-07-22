@@ -1,3 +1,4 @@
 clic
 *.test
 coverage.out
+eval/results/

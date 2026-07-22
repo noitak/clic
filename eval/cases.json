@@ -1,0 +1,96 @@
+{
+  "add_cases": [
+    {
+      "id": "ffmpeg-resize-video",
+      "command": "ffmpeg -i input.mov -vf scale=-2:720 output.mp4",
+      "note": "動画を720pに変換する",
+      "expected_params": ["input", "height", "output"],
+      "fixed_fragments": ["ffmpeg", "-vf", "scale=-2:"]
+    },
+    {
+      "id": "pdf-to-png",
+      "command": "pdftoppm -png -r 300 invoice.pdf invoice",
+      "note": "請求書PDFを画像化する",
+      "expected_params": ["dpi", "input", "prefix"],
+      "fixed_fragments": ["pdftoppm", "-png", "-r"]
+    },
+    {
+      "id": "recent-pdfs",
+      "command": "find ~/Downloads -name \"*.pdf\" -mtime -7",
+      "note": "最近ダウンロードしたPDFを探す",
+      "expected_params": ["directory", "pattern", "days"],
+      "fixed_fragments": ["find", "-name", "-mtime"]
+    },
+    {
+      "id": "curl-download",
+      "command": "curl -L https://example.com/archive.zip -o archive.zip",
+      "note": "URLからzipを保存する",
+      "expected_params": ["url", "output"],
+      "fixed_fragments": ["curl", "-L", "-o"]
+    },
+    {
+      "id": "git-log-since",
+      "command": "git log --oneline --since=\"2 weeks ago\"",
+      "note": "最近のコミットを見る",
+      "expected_params": ["since"],
+      "fixed_fragments": ["git log", "--oneline", "--since="]
+    }
+  ],
+  "ask_cases": [
+    {
+      "id": "ask-pdf-to-png",
+      "query": "invoice.pdfを200dpiでPNGにしてprefixはout",
+      "entry": {
+        "id": "pdf-to-png",
+        "template": "pdftoppm -png -r {{dpi}} \"{{input}}\" \"{{prefix}}\"",
+        "params": [
+          {"name": "dpi", "default": "300", "description": "出力画像の解像度。"},
+          {"name": "input", "default": "invoice.pdf", "description": "入力PDFファイル。"},
+          {"name": "prefix", "default": "invoice", "description": "出力ファイル名のプレフィックス。"}
+        ]
+      },
+      "expected_arguments": {
+        "dpi": "200",
+        "input": "invoice.pdf",
+        "prefix": "out"
+      }
+    },
+    {
+      "id": "ask-resize-video",
+      "query": "inputはscreen.mov、出力はsmall.mp4、高さは1080",
+      "entry": {
+        "id": "resize-video",
+        "template": "ffmpeg -i \"{{input}}\" -vf scale=-2:{{height}} \"{{output}}\"",
+        "params": [
+          {"name": "input", "default": "input.mov", "description": "入力動画ファイル。"},
+          {"name": "height", "default": "720", "description": "出力動画の高さ。"},
+          {"name": "output", "default": "output.mp4", "description": "出力動画ファイル。"}
+        ]
+      },
+      "expected_arguments": {
+        "input": "screen.mov",
+        "height": "1080",
+        "output": "small.mp4"
+      }
+    },
+    {
+      "id": "ask-unspecified-values",
+      "query": "DownloadsからPDFを探す",
+      "entry": {
+        "id": "recent-pdfs",
+        "template": "find {{directory}} -name \"{{pattern}}\" -mtime -{{days}}",
+        "params": [
+          {"name": "directory", "default": "~/Downloads", "description": "検索対象ディレクトリ。"},
+          {"name": "pattern", "default": "*.pdf", "description": "検索するファイル名パターン。"},
+          {"name": "days", "default": "7", "description": "何日前までを対象にするか。"}
+        ]
+      },
+      "expected_arguments": {
+        "directory": "Downloads",
+        "pattern": "",
+        "days": ""
+      }
+    }
+  ]
+}
+

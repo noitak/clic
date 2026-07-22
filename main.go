@@ -488,7 +488,7 @@ func loadConfig() Config {
 func generateAddMetadata(cfg Config, command, note string) (addJSON, error) {
 	prompt := addMetadataPrompt(command, note)
 	var out addJSON
-	if err := ollamaJSONCall(cfg, cfg.TimeoutAdd, prompt, 600, &out); err != nil {
+	if err := ollamaJSONCall(cfg, cfg.TimeoutAdd, prompt, 600, addMetadataSchema(), &out); err != nil {
 		return out, err
 	}
 	if err := validateGeneratedAdd(command, out); err == nil {
@@ -563,7 +563,7 @@ User note:
 
 Previous JSON:
 %s`, validationErr.Error(), command, note, string(prev))
-	return ollamaJSONCall(cfg, cfg.TimeoutAdd, prompt, 700, target)
+	return ollamaJSONCall(cfg, cfg.TimeoutAdd, prompt, 700, addMetadataSchema(), target)
 }
 
 func validateGeneratedAdd(command string, gen addJSON) error {
@@ -594,7 +594,7 @@ func inferArgs(cfg Config, query string, e Entry) (map[string]string, error) {
 	var out struct {
 		Arguments map[string]string `json:"arguments"`
 	}
-	if err := ollamaJSONCall(cfg, cfg.TimeoutAsk, prompt, 300, &out); err != nil {
+	if err := ollamaJSONCall(cfg, cfg.TimeoutAsk, prompt, 300, inferArgsSchema(), &out); err != nil {
 		return nil, err
 	}
 	allowed := map[string]bool{}
@@ -610,17 +610,8 @@ func inferArgs(cfg Config, query string, e Entry) (map[string]string, error) {
 	return result, nil
 }
 
-func ollamaJSON(cfg Config, timeout time.Duration, prompt string, numPredict int, target any) error {
-	body, _ := json.Marshal(map[string]any{
-		"model":  cfg.Model,
-		"prompt": prompt,
-		"stream": false,
-		"format": "json",
-		"options": map[string]any{
-			"temperature": 0.1,
-			"num_predict": numPredict,
-		},
-	})
+func ollamaJSON(cfg Config, timeout time.Duration, prompt string, numPredict int, format any, target any) error {
+	body, _ := ollamaRequestBody(cfg, prompt, numPredict, format)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(cfg.OllamaHost, "/")+"/api/generate", bytes.NewReader(body))
@@ -649,6 +640,66 @@ func ollamaJSON(cfg Config, timeout time.Duration, prompt string, numPredict int
 		return err
 	}
 	return nil
+}
+
+func ollamaRequestBody(cfg Config, prompt string, numPredict int, format any) ([]byte, error) {
+	return json.Marshal(map[string]any{
+		"model":  cfg.Model,
+		"prompt": prompt,
+		"stream": false,
+		"format": format,
+		"options": map[string]any{
+			"temperature": 0.1,
+			"num_predict": numPredict,
+		},
+	})
+}
+
+func addMetadataSchema() map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"id":          map[string]any{"type": "string"},
+			"title":       map[string]any{"type": "string"},
+			"description": map[string]any{"type": "string"},
+			"template":    map[string]any{"type": "string"},
+			"params": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type":                 "object",
+					"additionalProperties": false,
+					"properties": map[string]any{
+						"name":        map[string]any{"type": "string"},
+						"default":     map[string]any{"type": "string"},
+						"description": map[string]any{"type": "string"},
+					},
+					"required": []string{"name", "default", "description"},
+				},
+			},
+			"tags": map[string]any{
+				"type":  "array",
+				"items": map[string]any{"type": "string"},
+			},
+		},
+		"required": []string{"id", "title", "description", "template", "params", "tags"},
+	}
+}
+
+func inferArgsSchema() map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"arguments": map[string]any{
+				"type": "object",
+				"additionalProperties": map[string]any{
+					"type": "string",
+				},
+			},
+		},
+		"required": []string{"arguments"},
+	}
 }
 
 func validateEntry(e Entry) error {

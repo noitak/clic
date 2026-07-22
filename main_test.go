@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -191,7 +192,7 @@ func TestGenerateAddMetadataRetriesInvalidParams(t *testing.T) {
 	defer func() { ollamaJSONCall = old }()
 
 	calls := 0
-	ollamaJSONCall = func(cfg Config, timeout time.Duration, prompt string, numPredict int, target any) error {
+	ollamaJSONCall = func(cfg Config, timeout time.Duration, prompt string, numPredict int, format any, target any) error {
 		calls++
 		out := target.(*addJSON)
 		*out = addJSON{
@@ -220,5 +221,27 @@ func TestGenerateAddMetadataRetriesInvalidParams(t *testing.T) {
 	}
 	if len(gen.Params) != 3 || gen.Params[2].Name != "output_file" {
 		t.Fatalf("missing repaired output_file param: %#v", gen.Params)
+	}
+}
+
+func TestOllamaJSONUsesStructuredOutputSchema(t *testing.T) {
+	b, err := ollamaRequestBody(Config{Model: "test"}, "prompt", 32, inferArgsSchema())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(b, &body); err != nil {
+		t.Fatal(err)
+	}
+	gotFormat := body["format"]
+	format, ok := gotFormat.(map[string]any)
+	if !ok {
+		t.Fatalf("format should be a schema object, got %#v", gotFormat)
+	}
+	if format["type"] != "object" {
+		t.Fatalf("format schema missing object type: %#v", format)
+	}
+	if _, ok := format["properties"].(map[string]any)["arguments"]; !ok {
+		t.Fatalf("format schema missing arguments property: %#v", format)
 	}
 }
