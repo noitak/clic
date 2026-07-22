@@ -68,6 +68,8 @@ type addJSON struct {
 	Tags        []string `json:"tags"`
 }
 
+var ollamaJSONCall = ollamaJSON
+
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
@@ -477,8 +479,42 @@ func loadConfig() Config {
 }
 
 func generateAddMetadata(cfg Config, command, note string) (addJSON, error) {
-	prompt := fmt.Sprintf(`You summarize a shell command for reuse.
+	prompt := addMetadataPrompt(command, note)
+	var out addJSON
+	if err := ollamaJSONCall(cfg, cfg.TimeoutAdd, prompt, 600, &out); err != nil {
+		return out, err
+	}
+	if err := validateGeneratedAdd(command, out); err == nil {
+		return out, nil
+	} else {
+		var repaired addJSON
+		if repairErr := repairAddMetadata(cfg, command, note, out, err, &repaired); repairErr != nil {
+			return out, err
+		}
+		if repairErr := validateGeneratedAdd(command, repaired); repairErr != nil {
+			return repaired, repairErr
+		}
+		return repaired, nil
+	}
+}
+
+func addMetadataPrompt(command, note string) string {
+	return fmt.Sprintf(`You summarize a shell command for reuse.
 Return only JSON.
+Return exactly one JSON object with these keys:
+{
+  "id": "lowercase-english-slug",
+  "title": "short Japanese title",
+  "description": "one Japanese description paragraph",
+  "template": "shell command template using {{param}} placeholders",
+  "params": [
+    {"name": "param_name", "default": "default value", "description": "Japanese parameter description"}
+  ],
+  "tags": ["tag"]
+}
+All keys are required. Use [] for params or tags when empty.
+Keep title, description, and parameter descriptions in Japanese.
+For each parameter default, use the literal value from the original command when available.
 Generate id as a lowercase English slug.
 Allowed id characters: a-z, 0-9, hyphen.
 Do not invent new flags.
@@ -496,11 +532,44 @@ Command:
 
 User note:
 %s`, command, note)
-	var out addJSON
-	if err := ollamaJSON(cfg, cfg.TimeoutAdd, prompt, 600, &out); err != nil {
-		return out, err
-	}
-	return out, nil
+}
+
+func repairAddMetadata(cfg Config, command, note string, previous addJSON, validationErr error, target *addJSON) error {
+	prev, _ := json.MarshalIndent(previous, "", "  ")
+	prompt := fmt.Sprintf(`Fix this JSON for a saved shell command entry.
+Return only corrected JSON with the exact same required keys.
+Do not change the command structure.
+Every {{param}} in template must have exactly one params entry.
+Every params entry must be referenced in template.
+Params must be ordered by first occurrence in template.
+Keep title, description, and parameter descriptions in Japanese.
+For each parameter default, use the literal value from the original command when available.
+
+Validation error:
+%s
+
+Original command:
+%s
+
+User note:
+%s
+
+Previous JSON:
+%s`, validationErr.Error(), command, note, string(prev))
+	return ollamaJSONCall(cfg, cfg.TimeoutAdd, prompt, 700, target)
+}
+
+func validateGeneratedAdd(command string, gen addJSON) error {
+	return validateEntry(Entry{
+		ID:              gen.ID,
+		Title:           gen.Title,
+		OriginalCommand: command,
+		Template:        gen.Template,
+		Tags:            gen.Tags,
+		Params:          gen.Params,
+		Timestamp:       time.Now().Format(time.RFC3339),
+		Description:     gen.Description,
+	})
 }
 
 func inferArgs(cfg Config, query string, e Entry) (map[string]string, error) {
@@ -518,7 +587,7 @@ func inferArgs(cfg Config, query string, e Entry) (map[string]string, error) {
 	var out struct {
 		Arguments map[string]string `json:"arguments"`
 	}
-	if err := ollamaJSON(cfg, cfg.TimeoutAsk, prompt, 300, &out); err != nil {
+	if err := ollamaJSONCall(cfg, cfg.TimeoutAsk, prompt, 300, &out); err != nil {
 		return nil, err
 	}
 	allowed := map[string]bool{}
@@ -579,8 +648,21 @@ func validateEntry(e Entry) error {
 	if !regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`).MatchString(e.ID) {
 		return fmt.Errorf("invalid id: %s", e.ID)
 	}
-	if strings.TrimSpace(e.Title) == "" || strings.TrimSpace(e.OriginalCommand) == "" || strings.TrimSpace(e.Template) == "" || strings.TrimSpace(e.Description) == "" {
-		return errors.New("id, title, original_command, template, and description are required")
+	var missing []string
+	if strings.TrimSpace(e.Title) == "" {
+		missing = append(missing, "title")
+	}
+	if strings.TrimSpace(e.OriginalCommand) == "" {
+		missing = append(missing, "original_command")
+	}
+	if strings.TrimSpace(e.Template) == "" {
+		missing = append(missing, "template")
+	}
+	if strings.TrimSpace(e.Description) == "" {
+		missing = append(missing, "description")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required field(s): %s", strings.Join(missing, ", "))
 	}
 	if firstToken(e.OriginalCommand) != firstToken(e.Template) {
 		return errors.New("first command token of original_command and template must match")

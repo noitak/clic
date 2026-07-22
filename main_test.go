@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRenderReadAndShowEntry(t *testing.T) {
@@ -105,5 +106,42 @@ func TestSearchFindsJapaneseBody(t *testing.T) {
 	}
 	if exact || len(matches) != 1 || matches[0].ID != entry.ID {
 		t.Fatalf("unexpected search result exact=%v matches=%#v", exact, matches)
+	}
+}
+
+func TestGenerateAddMetadataRetriesInvalidParams(t *testing.T) {
+	old := ollamaJSONCall
+	defer func() { ollamaJSONCall = old }()
+
+	calls := 0
+	ollamaJSONCall = func(cfg Config, timeout time.Duration, prompt string, numPredict int, target any) error {
+		calls++
+		out := target.(*addJSON)
+		*out = addJSON{
+			ID:          "resize-video",
+			Title:       "動画をリサイズする",
+			Description: "ffmpegで動画を指定した高さにリサイズする。",
+			Template:    `ffmpeg -i "{{input_file}}" -vf scale=-2:{{height}} "{{output_file}}"`,
+			Params: []Param{
+				{Name: "input_file", Default: "input.mov", Description: "入力動画ファイル。"},
+				{Name: "height", Default: "720", Description: "出力動画の高さ。"},
+			},
+			Tags: []string{"ffmpeg", "video"},
+		}
+		if calls == 2 {
+			out.Params = append(out.Params, Param{Name: "output_file", Default: "output.mp4", Description: "出力動画ファイル。"})
+		}
+		return nil
+	}
+
+	gen, err := generateAddMetadata(Config{}, "ffmpeg -i input.mov -vf scale=-2:720 output.mp4", "動画を720pに変換する")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected one repair call, got %d", calls)
+	}
+	if len(gen.Params) != 3 || gen.Params[2].Name != "output_file" {
+		t.Fatalf("missing repaired output_file param: %#v", gen.Params)
 	}
 }
