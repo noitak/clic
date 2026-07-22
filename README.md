@@ -119,8 +119,14 @@ clic pdf-to-png
 clic pdf png 300dpi
 ```
 
-検索結果が一つなら自動選択されます。
+検索結果が一つなら、`id` とタイトルを表示してから自動選択されます。
 複数ある場合は、候補から番号で選びます。
+
+```text
+Match:
+
+pdf-to-png              PDFをPNG画像に変換する
+```
 
 ```text
 Matches:

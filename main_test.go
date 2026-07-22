@@ -79,6 +79,41 @@ func TestAskExactMatchSkipsOllamaAndCanDeclineCopy(t *testing.T) {
 	}
 }
 
+func TestAskSingleSearchResultShowsIDAndTitle(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := ensureDirs(); err != nil {
+		t.Fatal(err)
+	}
+	entry := Entry{
+		ID:              "resize-video",
+		Title:           "動画をリサイズする",
+		OriginalCommand: "ffmpeg -i input.mov output.mp4",
+		Template:        `ffmpeg -i "{{input}}" "{{output}}"`,
+		Tags:            []string{"ffmpeg"},
+		Params: []Param{
+			{Name: "input", Default: "input.mov", Description: "入力動画。"},
+			{Name: "output", Default: "output.mp4", Description: "出力動画。"},
+		},
+		Timestamp:   "2026-07-21T12:00:00+09:00",
+		Description: "請求書ではなく動画変換のためのコマンド。",
+	}
+	if err := os.WriteFile(filepath.Join(commandsDir(), entry.ID+".md"), []byte(renderMarkdown(entry)), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	if err := cmdAsk([]string{"動画変換"}, strings.NewReader("\n\nn\n"), &out, &errOut); err != nil {
+		t.Fatalf("%v\nstdout:\n%s\nstderr:\n%s", err, out.String(), errOut.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "Match:\n\nresize-video") {
+		t.Fatalf("ask output missing single match id:\n%s", got)
+	}
+	if !strings.Contains(got, "動画をリサイズする") {
+		t.Fatalf("ask output missing single match title:\n%s", got)
+	}
+}
+
 func TestAskPromptsParamsFromUnindentedYAMLList(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if err := ensureDirs(); err != nil {

@@ -189,6 +189,7 @@ Default behavior:
 1. Join query arguments with spaces.
 2. Search saved Markdown command files.
 3. Select automatically for exact ID/file-name match or a single search result.
+   For a single non-exact search result, show its `id` and title before continuing.
 4. Show a selection UI when multiple entries match.
 5. Infer parameter values with Ollama when the query was not an exact ID/file-name match.
 6. Prompt for parameters.

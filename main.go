@@ -307,29 +307,36 @@ func cmdAsk(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return nil
 	}
 	selected := matches[0]
-	if !exact && len(matches) > 1 {
-		fmt.Fprintln(stdout, "Matches:")
-		fmt.Fprintln(stdout)
-		for i, e := range matches {
-			if i >= 10 {
-				break
+	if !exact {
+		if len(matches) == 1 {
+			fmt.Fprintln(stdout, "Match:")
+			fmt.Fprintln(stdout)
+			fmt.Fprintf(stdout, "%-24s %s\n", selected.ID, selected.Title)
+			fmt.Fprintln(stdout)
+		} else {
+			fmt.Fprintln(stdout, "Matches:")
+			fmt.Fprintln(stdout)
+			for i, e := range matches {
+				if i >= 10 {
+					break
+				}
+				fmt.Fprintf(stdout, "%d. %-24s %s\n", i+1, e.ID, e.Title)
 			}
-			fmt.Fprintf(stdout, "%d. %-24s %s\n", i+1, e.ID, e.Title)
+			fmt.Fprintln(stdout)
+			ans, err := prompt(stdout, stdin, fmt.Sprintf("Select [1-%d], q to quit: ", min(len(matches), 10)))
+			if err != nil {
+				return err
+			}
+			ans = strings.TrimSpace(ans)
+			if strings.ToLower(ans) == "q" {
+				return nil
+			}
+			n, err := strconv.Atoi(ans)
+			if err != nil || n < 1 || n > min(len(matches), 10) {
+				return errors.New("invalid selection")
+			}
+			selected = matches[n-1]
 		}
-		fmt.Fprintln(stdout)
-		ans, err := prompt(stdout, stdin, fmt.Sprintf("Select [1-%d], q to quit: ", min(len(matches), 10)))
-		if err != nil {
-			return err
-		}
-		ans = strings.TrimSpace(ans)
-		if strings.ToLower(ans) == "q" {
-			return nil
-		}
-		n, err := strconv.Atoi(ans)
-		if err != nil || n < 1 || n > min(len(matches), 10) {
-			return errors.New("invalid selection")
-		}
-		selected = matches[n-1]
 	}
 	inferred := map[string]string{}
 	if !exact {
