@@ -1,6 +1,4 @@
-# clic
-
-`clic` は **Command Library in Context** の略です。
+# clic - Command Library in Context
 
 `clic` は、よく使うシェルコマンドを Markdown の小さな runbook として保存し、自然言語で探して、パラメータを埋めて、クリップボードへコピーするための個人用 CLI です。
 
