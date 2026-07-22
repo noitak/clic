@@ -79,6 +79,48 @@ func TestAskExactMatchSkipsOllamaAndCanDeclineCopy(t *testing.T) {
 	}
 }
 
+func TestAskPromptsParamsFromUnindentedYAMLList(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := ensureDirs(); err != nil {
+		t.Fatal(err)
+	}
+	entry := `---
+id: "convert-video-resolution"
+title: "動画の解像度変更"
+original_command: "ffmpeg -i input.mov -vf scale=-2:720 output.mp4"
+template: "ffmpeg -i {{input_file}} -vf scale=-2:720 {{output_file}}"
+tags: ["video", "resolution"]
+params:
+- name: "input_file"
+  default: "input.mov"
+  description: "入力ファイルのパス"
+- name: "output_file"
+  default: "output.mp4"
+  description: "出力ファイルのパス"
+timestamp: "2026-07-22T09:06:28+09:00"
+---
+
+指定したファイルの解像度を変更します。
+`
+	if err := os.WriteFile(filepath.Join(commandsDir(), "convert-video-resolution.md"), []byte(entry), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	if err := cmdAsk([]string{"convert-video-resolution"}, strings.NewReader("\n\nn\n"), &out, &errOut); err != nil {
+		t.Fatalf("%v\nstdout:\n%s\nstderr:\n%s", err, out.String(), errOut.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "input_file [input.mov]: ") {
+		t.Fatalf("ask output missing input_file prompt:\n%s", got)
+	}
+	if !strings.Contains(got, "output_file [output.mp4]: ") {
+		t.Fatalf("ask output missing output_file prompt:\n%s", got)
+	}
+	if !strings.Contains(got, "ffmpeg -i input.mov -vf scale=-2:720 output.mp4") {
+		t.Fatalf("ask output missing rendered command:\n%s", got)
+	}
+}
+
 func TestSearchFindsJapaneseBody(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if err := ensureDirs(); err != nil {

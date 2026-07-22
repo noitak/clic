@@ -838,22 +838,31 @@ func parseFrontMatter(fm string) (Entry, error) {
 func parseParams(lines []string, start int) ([]Param, int) {
 	var params []Param
 	i := start
+	listPrefix := "  - "
+	childPrefix := "    "
+	if i < len(lines) && strings.HasPrefix(lines[i], "- ") {
+		listPrefix = "- "
+		childPrefix = "  "
+	}
 	for i < len(lines) {
-		if !strings.HasPrefix(lines[i], "  - ") {
+		if !strings.HasPrefix(lines[i], listPrefix) {
 			break
 		}
 		p := Param{}
 		for i < len(lines) {
 			line := lines[i]
-			if strings.HasPrefix(line, "  - ") {
-				k, v, _ := strings.Cut(strings.TrimPrefix(line, "  - "), ":")
+			if strings.HasPrefix(line, listPrefix) {
+				if p.Name != "" || p.Default != "" || p.Description != "" {
+					break
+				}
+				k, v, _ := strings.Cut(strings.TrimPrefix(line, listPrefix), ":")
 				if strings.TrimSpace(k) == "name" {
 					p.Name = unquoteYAML(strings.TrimSpace(v))
 				}
 				i++
 				continue
 			}
-			if !strings.HasPrefix(line, "    ") {
+			if !strings.HasPrefix(line, childPrefix) {
 				break
 			}
 			k, v, ok := strings.Cut(strings.TrimSpace(line), ":")
